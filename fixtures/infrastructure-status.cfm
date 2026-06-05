@@ -1,52 +1,89 @@
-<cfquery name="GetPipeMetrics" datasource="NexusWaterLocal">
-    SELECT pipe_id, sector_zone, current_psi, max_threshold, last_inspection 
-    FROM pipeline_core 
-    WHERE status = 'ACTIVE' AND sector_zone = 'ZONE-B'
-    ORDER BY current_psi DESC
-</cfquery>
+<cfinclude template="legacy-intranet/includes/header.cfm">
 
-<html>
-<head>
-    <title>NexusHub - Daily Water Pressure Ops</title>
-    <style>
-        body { font-family: "Courier New", monospace; background-color: #f0f0f0; }
-        .alert-high { color: #FF0000; font-weight: bold; background-color: #FFFF00; }
-        .normal-row { color: #003366; }
-    </style>
-</head>
-<body>
-    <font size="5" color="#003366"><b>NEXUS WATER OPERATIONS -- ZONE B STATUS</b></font>
-    <hr size="2" color="#003366">
+<cftry>
+    <cfquery name="GetPipeMetricsRaw" datasource="NexusWaterLocal" timeout="2">
+        SELECT pipe_id, sector_zone, current_psi, max_threshold, last_inspection 
+        FROM pipeline_core 
+        WHERE status = 'ACTIVE' AND sector_zone = 'ZONE-B'
+        ORDER BY current_psi DESC
+    </cfquery>
+    <cfset GetPipeMetrics = GetPipeMetricsRaw>
+    
+    <cfcatch type="any">
+        <cfset GetPipeMetrics = queryNew("pipe_id,sector_zone,current_psi,max_threshold,last_inspection", "VarChar,VarChar,Integer,Integer,VarChar")>
+        
+        <cfset queryAddRow(GetPipeMetrics)>
+        <cfset querySetCell(GetPipeMetrics, "pipe_id", "PIPE-104-B")>
+        <cfset querySetCell(GetPipeMetrics, "sector_zone", "ZONE-B")>
+        <cfset querySetCell(GetPipeMetrics, "current_psi", 142)>
+        <cfset querySetCell(GetPipeMetrics, "max_threshold", 120)>
+        <cfset querySetCell(GetPipeMetrics, "last_inspection", "14-May-2015")>
 
-    <p>Current Server Timestamp: <cfoutput>#Now()#</cfoutput></p>
+        <cfset queryAddRow(GetPipeMetrics)>
+        <cfset querySetCell(GetPipeMetrics, "pipe_id", "PIPE-209-B")>
+        <cfset querySetCell(GetPipeMetrics, "sector_zone", "ZONE-B")>
+        <cfset querySetCell(GetPipeMetrics, "current_psi", 95)>
+        <cfset querySetCell(GetPipeMetrics, "max_threshold", 115)>
+        <cfset querySetCell(GetPipeMetrics, "last_inspection", "02-Apr-2015")>
 
-    <table border="1" cellpadding="5" cellspacing="0" bgcolor="#FFFFFF" width="90%">
-        <tr bgcolor="#003366">
-            <th><font color="white">Pipe ID</font></th>
-            <th><font color="white">Zone</font></th>
-            <th><font color="white">Current PSI</font></th>
-            <th><font color="white">Max Operational Limit</font></th>
-            <th><font color="white">Status Check</font></th>
-        </tr>
+        <cfset queryAddRow(GetPipeMetrics)>
+        <cfset querySetCell(GetPipeMetrics, "pipe_id", "PIPE-088-B")>
+        <cfset querySetCell(GetPipeMetrics, "sector_zone", "ZONE-B")>
+        <cfset querySetCell(GetPipeMetrics, "current_psi", 112)>
+        <cfset querySetCell(GetPipeMetrics, "max_threshold", 115)>
+        <cfset querySetCell(GetPipeMetrics, "last_inspection", "19-Jan-2015")>
+    </cfcatch>
+</cftry>
 
-        <cfoutput query="GetPipeMetrics">
-            <tr class="<cfif current_psi GT max_threshold>alert-high<cfelse>normal-row</cfif>">
-                <td>#pipe_id#</td>
-                <td>#sector_zone#</td>
-                <td>#current_psi# PSI</td>
-                <td>#max_threshold# PSI</td>
-                <td>
-                    <cfif current_psi GT max_threshold>
-                        🚨 CRITICAL OVERPRESSURE DETECTED
-                    <cfelse>
-                        Nominal operational load.
-                    </cfif>
-                </td>
-            </tr>
-        </cfoutput>
-    </table>
+<table width="98%" border="0" align="center" cellpadding="10" cellspacing="0" bgcolor="#FFFFFF" style="margin-top:15px; border:1px solid #CCCCCC;">
+    <tr>
+        <td valign="top">
+            <font face="Arial, Helvetica, sans-serif" color="#002855" size="5">
+                <strong>SCADA Pipeline Telemetry Matrix -- Sector Zone B</strong>
+            </font>
+            <hr size="2" color="#002855">
+            <br>
 
-    <hr size="1" color="#CCCCCC">
-    <font size="1" color="#666666">System managed by Operations v2.1.0. Internal Use Only.</font>
-</body>
-</html>
+            <p style="font-family:Arial; font-size:12px; color:#444444; line-height:140%;">
+                <strong>Active Monitoring Mode:</strong> Polling local vector switch array endpoints. Values evaluate physical pounds per square inch (PSI) load signatures matching automated flow regulator controls.
+            </p>
+
+            <table border="1" cellpadding="6" cellspacing="0" width="100%" style="border-collapse:collapse; border-color:#CCCCCC; font-family:Arial; font-size:12px; margin-top:15px;">
+                <tr bgcolor="#002855">
+                    <th><font color="white">Pipeline Identifier</font></th>
+                    <th><font color="white">Operational Zone</font></th>
+                    <th><font color="white">Current Metric Load</font></th>
+                    <th><font color="white">Max Design Limit</font></th>
+                    <th><font color="white">Last Quality Sweep</font></th>
+                    <th><font color="white">Status Evaluation Flag</font></th>
+                </tr>
+
+                <cfoutput query="GetPipeMetrics">
+                    <tr <cfif current_psi GT max_threshold>bgcolor="##FFFFEE"<cfelse>bgcolor="##FFFFFF"</cfif>>
+                        <td><strong>#pipe_id#</strong></td>
+                        <td align="center">#sector_zone#</td>
+                        <td align="right">
+                            <font <cfif current_psi GT max_threshold>color="##CC0000" style="font-weight:bold;"</cfif>>#current_psi# PSI</font>
+                        </td>
+                        <td align="right">#max_threshold# PSI</td>
+                        <td align="center">#last_inspection#</td>
+                        <td>
+                            <cfif current_psi GT max_threshold>
+                                <font color="##CC0000"><strong>🚨 CRITICAL OVERPRESSURE WARNING DETECTED</strong></font>
+                            <cfelse>
+                                <font color="##006600">Nominal load threshold profile.</font>
+                            </cfif>
+                        </td>
+                    </tr>
+                </cfoutput>
+            </table>
+
+            <br><br>
+            <div style="background-color:#F5F5F5; border:1px solid #DDDDDD; padding:10px; font-family:Arial; font-size:11px; color:#666666;">
+                <strong>System Registry Trace:</strong> Lucee Web Core Gateway // Core Processors: Stable // Database Direct Handshake State: <font color="orange"><strong>MOCK_FAILOVER_ACTIVE</strong></font>
+            </div>
+        </td>
+    </tr>
+</table>
+
+<cfinclude template="legacy-intranet/includes/footer.cfm">
