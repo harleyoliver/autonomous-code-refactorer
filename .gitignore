@@ -1,0 +1,24 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Runtime Secrets (Never let these reach GitHub)
+.env
+.env.local
+.env.production
+.env.development
+
+# Dependency Directories
+node_modules/
+/dist
+/.next/
+
+# Local Database State
+prisma/*.db
+prisma/*.db-journal
+*.sqlite
+
+# OS Metadata
+.DS_Store
+.directory
