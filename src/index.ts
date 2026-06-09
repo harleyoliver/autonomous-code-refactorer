@@ -3,24 +3,28 @@ import { randomUUID } from "node:crypto";
 import { ingestLegacyMesh } from "./utils/reader.js";
 import { parserAgentNode } from "./agents/parser.js";
 import { researcherAgentNode } from "./agents/researcher.js";
+import { generatorAgentNode } from "./agents/generator.js";
 import { db } from "./utils/db.js";
 
 /**
  * CORE ORCHESTRATION ENGINE
- * Coordinates conditional graph boundaries across persistent local database states.
+ * Executes an automated multi-agent state graph pipeline backed by SQLite checkpoints.
  */
 async function coordinateStateGraph(runId: string) {
   let pipelineActive = true;
   let safetyLoopBreaker = 0;
 
-  console.log(`🎬 Beginning State-Graph Loop Execution for Run ID: ${runId}\n`);
+  console.log(
+    `🎬 Beginning Unified State-Graph Execution for Run ID: ${runId}\n`,
+  );
 
   while (pipelineActive && safetyLoopBreaker < 10) {
     safetyLoopBreaker++;
 
+    // Read state parameters directly out of the SQLite db row
     const currentRunState = await db.pipelineRun.findUnique({
       where: { id: runId },
-      include: { queries: true, scripts: true, styles: true, errors: true },
+      include: { errors: true },
     });
 
     if (!currentRunState) {
@@ -31,24 +35,28 @@ async function coordinateStateGraph(runId: string) {
     }
 
     console.log(
-      `\n🔄 [Graph Router] Checkpoint Status: "${currentRunState.status}" (Pass ${safetyLoopBreaker})`,
+      `🔄 [Graph Router] Step ${safetyLoopBreaker} Checkpoint Status: "${currentRunState.status}"`,
     );
 
+    // CONDITIONAL EDGE ROUTING CIRCUIT
     switch (currentRunState.status) {
       case "PENDING":
         await parserAgentNode(runId);
         break;
 
       case "RESEARCHING":
-        // Dynamically invoke the Researcher Agent Node
         await researcherAgentNode(runId);
         break;
 
       case "SYNTHESIZING":
+        // Dynamically invoke the Generator Agent Node
+        await generatorAgentNode(runId);
+        break;
+
+      case "COMPLETED":
         console.log(
-          `✨ [Graph Router] Knowledge hydration complete. System ready for Component Synthesis Node.`,
+          `🎉 [Graph Router] Terminal Node Reached: Ingestion pipeline run has concluded successfully.`,
         );
-        // TODO Stop the loop here until I map out the Component Synthesis Node file
         pipelineActive = false;
         break;
 
@@ -60,15 +68,13 @@ async function coordinateStateGraph(runId: string) {
         break;
 
       default:
-        console.log(
-          `🏁 [Graph Router] Loop reached an unhandled termination point.`,
-        );
+        console.log(`🏁 [Graph Router] Unhandled routing tag.`);
         pipelineActive = false;
         break;
     }
   }
 
-  // Final Audit Log display to view persistent table metrics
+  // Final database introspection review
   const finalAudit = await db.pipelineRun.findUnique({
     where: { id: runId },
     include: { queries: true, scripts: true, styles: true },
@@ -79,11 +85,14 @@ async function coordinateStateGraph(runId: string) {
     console.log(
       "======================================================================",
     );
-    console.log(`[Run ID]:       ${finalAudit.id}`);
-    console.log(`[Final Status]: ${finalAudit.status}`);
-    console.log(`[SQL Queries]:  Count: ${finalAudit.queries.length}`);
+    console.log(`[Run ID]:           ${finalAudit.id}`);
+    console.log(`[Final State]:      ${finalAudit.status}`);
+    console.log(`[SQL Queries Rec]:  Count: ${finalAudit.queries.length}`);
     console.log(
-      `[Design Rules]: Count: ${finalAudit.styles.filter((s) => s.rawStyle.startsWith("DESIGN_DIRECTIVE")).length}`,
+      `[Design Rules]:     Count: ${finalAudit.styles.filter((s) => s.rawStyle.startsWith("DESIGN_DIRECTIVE")).length}`,
+    );
+    console.log(
+      `[React Code Size]:  ${finalAudit.targetTypeScriptComponent?.length || 0} code characters.`,
     );
     console.log(
       "======================================================================",
@@ -106,7 +115,7 @@ async function startPipelineRun() {
       rawSourceCode: fileMesh.sanitizedContent,
       status: "PENDING",
       humanApproval: "PENDING",
-      iterationCount: 0,
+      iterationCount: 1,
       isSyntaxValidated: false,
     },
   });
