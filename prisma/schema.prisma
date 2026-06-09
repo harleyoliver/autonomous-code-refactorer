@@ -1,0 +1,60 @@
+datasource db {
+  provider = "sqlite"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+/**
+ * MASTER TELEMETRY TABLE: Tracks the full state-machine canvas across sessions
+ */
+model PipelineRun {
+  id                        String             @id // Maps directly to our fileId UUID
+  sourcePath                String
+  fileType                  String
+  rawSourceCode             String
+  targetTypeScriptComponent String?
+  status                    String
+  humanApproval             String
+  iterationCount            Int
+  isSyntaxValidated         Boolean
+  layoutTablesCount         Int                @default(0)
+  spacerGifsCount           Int                @default(0)
+  createdAt                 DateTime           @default(now())
+  updatedAt                 DateTime           @updatedAt
+
+  // Relational links to isolated nested metric properties
+  queries                   SqlQuery[]
+  scripts                   InlineScript[]
+  styles                    InlineStyle[]
+  errors                    CompilationError[]
+}
+
+model SqlQuery {
+  id            Int         @id @default(autoincrement())
+  rawSql        String
+  pipelineRunId String
+  pipelineRun   PipelineRun @relation(fields: [pipelineRunId], references: [id], onDelete: Cascade)
+}
+
+model InlineScript {
+  id            Int         @id @default(autoincrement())
+  rawScript     String
+  pipelineRunId String
+  pipelineRun   PipelineRun @relation(fields: [pipelineRunId], references: [id], onDelete: Cascade)
+}
+
+model InlineStyle {
+  id            Int         @id @default(autoincrement())
+  rawStyle      String
+  pipelineRunId String
+  pipelineRun   PipelineRun @relation(fields: [pipelineRunId], references: [id], onDelete: Cascade)
+}
+
+model CompilationError {
+  id            Int         @id @default(autoincrement())
+  errorMessage  String
+  pipelineRunId String
+  pipelineRun   PipelineRun @relation(fields: [pipelineRunId], references: [id], onDelete: Cascade)
+}
