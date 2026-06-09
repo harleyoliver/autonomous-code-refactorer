@@ -1,105 +1,103 @@
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
 import { ingestLegacyMesh } from "./utils/reader.js";
-import { invokeArmedDebtParser } from "./utils/bedrock.js";
-import { legacyDebtAnalysisSchema } from "./schemas/validation.js";
-import { db } from "./utils/db.js"; // Prisma v7 configured instance
+import { parserAgentNode } from "./agents/parser.js";
+import { db } from "./utils/db.js";
 
-async function startPipelineRun() {
-  console.log("🔄 Launching persistent telemetry execution loop...\n");
+/**
+ * CORE ORCHESTRATION ENGINE
+ * Simulates a LangGraph state machine workflow using a database checkpoint router.
+ */
+async function coordinateStateGraph(runId: string) {
+  let pipelineActive = true;
+  let safetyLoopBreaker = 0;
 
-  const targetPath = "fixtures/legacy-intranet/index.cfm";
+  console.log(`🎬 Beginning State-Graph Loop Execution for Run ID: ${runId}\n`);
 
-  // 1. Ingest local legacy asset mesh
-  const fileMesh = await ingestLegacyMesh(targetPath);
-  console.log(
-    `📂 Loaded source code asset: ${fileMesh.targetPath} (${fileMesh.sanitizedContent.length} characters)`,
-  );
+  while (pipelineActive && safetyLoopBreaker < 10) {
+    safetyLoopBreaker++;
 
-  // 2. Dispatch payload to the transport layer (mock-fallback active)
-  const rawServiceResponse = await invokeArmedDebtParser(
-    fileMesh.sanitizedContent,
-    true,
-  );
-  console.log("📡 Response envelope captured from service gateway.");
-
-  try {
-    // 3. Unpack the tool usage structure emitted by the model client
-    const envelope = JSON.parse(rawServiceResponse);
-    const toolInputArguments = envelope.tool_use.input;
-
-    console.log(
-      "🛡️ Passing tool arguments through Zod runtime validation barriers...",
-    );
-    const validatedData = legacyDebtAnalysisSchema.parse(toolInputArguments);
-    console.log(
-      "✅ Validation clear. Mapping tokens directly to SQLite data layers...",
-    );
-
-    // 4. Generate unique tracking identifiers
-    const runId = randomUUID();
-
-    // 5. Execute an atomic Prisma write transaction
-    const persistedRecord = await db.pipelineRun.create({
-      data: {
-        id: runId,
-        sourcePath: validatedData.fileTarget,
-        fileType: "CFM_MAIN",
-        rawSourceCode: fileMesh.sanitizedContent,
-        targetTypeScriptComponent: null,
-        status: "RESEARCHING",
-        humanApproval: "PENDING",
-        iterationCount: 1,
-        isSyntaxValidated: false,
-        layoutTablesCount: validatedData.metrics.layoutTablesCount,
-        spacerGifsCount: validatedData.metrics.spacerGifsCount,
-
-        // Populate nested relational sub-tables simultaneously
-        queries: {
-          create: validatedData.extractedQueries.map((q) => ({ rawSql: q })),
-        },
-        scripts: {
-          create: validatedData.inlineScripts.map((s) => ({ rawScript: s })),
-        },
-        styles: {
-          create: validatedData.styleInjections.map((st) => ({ rawStyle: st })),
-        },
-      },
-      include: {
-        queries: true,
-        scripts: true,
-      },
+    // Read the current state directly from our persistent SQLite checkpoint
+    const currentRunState = await db.pipelineRun.findUnique({
+      where: { id: runId },
+      include: { queries: true, scripts: true, errors: true },
     });
 
-    // 6. Echo out transaction telemetry to console
-    console.log("\n💾 Relational SQL Database Sync Successful!");
+    if (!currentRunState) {
+      console.error(
+        `🚨 Graph Loop Failure: State record could not be found for ID: ${runId}`,
+      );
+      break;
+    }
+
     console.log(
-      "======================================================================",
+      `🔄 [Graph Router] Current Checkpoint Status: "${currentRunState.status}" (Pass ${safetyLoopBreaker})`,
     );
-    console.log(`[Database ID]:     ${persistedRecord.id}`);
-    console.log(`[Saved Path]:      ${persistedRecord.sourcePath}`);
-    console.log(`[Status Level]:    ${persistedRecord.status}`);
-    console.log(
-      `[Extracted Rows]:  Queries: ${persistedRecord.queries.length}, Scripts: ${persistedRecord.scripts.length}`,
-    );
-    console.log(
-      "======================================================================",
-    );
-  } catch (error: any) {
-    console.error(
-      "\n🚨 Pipeline execution crashed during ingestion processing loop:",
-    );
-    if (error && error.errors) {
-      console.error(JSON.stringify(error.errors, null, 2));
-    } else {
-      console.error(error.message);
+
+    // CONDITIONAL EDGE ROUTING LOGIC
+    switch (currentRunState.status) {
+      case "PENDING":
+        // Route directly to the database-backed Parser Node
+        await parserAgentNode(runId);
+        break;
+
+      case "RESEARCHING":
+        console.log(
+          `🔍 [Graph Router] Ingestion complete. Next state node target: ResearcherAgent Semantic RAG.`,
+        );
+        // Temporarily spin down the graph execution until we map the researcher table sync hooks next!
+        pipelineActive = false;
+        break;
+
+      case "FAILED":
+        console.error(
+          `🛑 [Graph Router] Circuit breaker triggered. Run has transitioned to a FAILED state.`,
+        );
+        console.error(
+          `   Log details:`,
+          currentRunState.errors.map((e) => e.errorMessage),
+        );
+        pipelineActive = false;
+        break;
+
+      default:
+        console.log(
+          `🏁 [Graph Router] Unhandled state sequence or execution path completed clear.`,
+        );
+        pipelineActive = false;
+        break;
     }
   }
 }
 
+async function startPipelineRun() {
+  console.log("🔄 Bootstrapping state-machine architecture...\n");
+  const targetPath = "fixtures/legacy-intranet/index.cfm";
+
+  // Initialize the baseline file mesh payload
+  const fileMesh = await ingestLegacyMesh(targetPath);
+  const nextRunId = randomUUID();
+
+  // Create the initial entry checkpoint directly in our SQL database file
+  await db.pipelineRun.create({
+    data: {
+      id: nextRunId,
+      sourcePath: fileMesh.targetPath,
+      fileType: "CFM_MAIN",
+      rawSourceCode: fileMesh.sanitizedContent,
+      status: "PENDING", // Initial state-machine state
+      humanApproval: "PENDING",
+      iterationCount: 0,
+      isSyntaxValidated: false,
+    },
+  });
+
+  // Ignite the dynamic graph router loop
+  await coordinateStateGraph(nextRunId);
+
+  console.log("\n🏁 Graph execution loop safely cycled down.");
+}
+
 startPipelineRun().catch((error) => {
-  console.error(
-    "\n🚨 Fatal exception unhandled at orchestrator level:",
-    error.message,
-  );
+  console.error("\n🚨 Monolithic orchestration failure:", error.message);
 });

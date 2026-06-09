@@ -1,78 +1,88 @@
 import { tokenizeLegacyDebt } from "../utils/tokenizer.js";
 import { legacyDebtAnalysisSchema } from "../schemas/validation.js";
-import type { MigrationGraphState } from "../graph/state.js";
+import { db } from "../utils/db.js";
 
 /**
- * ARCHITECTURAL NODE: ParserAgent
- * Footprint: (state: MigrationGraphState) => Promise<Partial<MigrationGraphState>>
- * * Intercepts raw source code bytes, extracts embedded technical debt markers,
- * validates compliance via Zod, and emits type-safe state mutations.
+ * STATE-GRAPH NODE: ParserAgent
+ * Reads a pending database pipeline run, extracts embedded code features,
+ * asserts Zod validation, and promotes the state transaction checkpoint.
  */
-export async function parserAgentNode(
-  state: MigrationGraphState,
-): Promise<Partial<MigrationGraphState>> {
+export async function parserAgentNode(runId: string): Promise<void> {
   console.log(
-    `🤖 [Node: ParserAgent] Analyzing codebase telemetry for path: ${state.sourcePath}`,
+    `🤖 [Node: ParserAgent] Fetching active pipeline state for Run ID: ${runId}`,
   );
 
-  if (!state.rawSourceCode || state.rawSourceCode.length === 0) {
-    return {
-      status: "FAILED",
-      compilationErrors: [
-        ...state.compilationErrors,
-        "Parser failure: Raw source code buffer is completely empty.",
-      ],
-    };
+  // 1. Pull the absolute source record from our physical storage ledger
+  const record = await db.pipelineRun.findUnique({ where: { id: runId } });
+  if (!record || !record.rawSourceCode) {
+    throw new Error(
+      `[ParserAgent] Missing or invalid database record state for Run ID: ${runId}`,
+    );
   }
 
   try {
-    // 1. Fire local tokenization regex arrays
-    const debtTokens = tokenizeLegacyDebt(state.rawSourceCode);
+    // 2. Fire local regex tokenization macro arrays
+    const debtTokens = tokenizeLegacyDebt(record.rawSourceCode);
 
-    // 2. Format the payload metadata context structure
+    // 3. Format the data envelope to look exactly like an agent tool output
     const rawPayloadObject = {
-      fileTarget: state.sourcePath,
+      fileTarget: record.sourcePath,
       hasServerSideLogic:
-        debtTokens.queries.length > 0 || state.rawSourceCode.includes("<cfif"),
+        debtTokens.queries.length > 0 || record.rawSourceCode.includes("<cfif"),
       extractedQueries: debtTokens.queries,
       inlineScripts: debtTokens.scripts,
       styleInjections: ["border: 3px solid #002855", 'bgcolor="#EAEAEA"'],
       metrics: {
         layoutTablesCount: debtTokens.layoutTablesCount,
-        spacerGifsCount: 5,
-        marginHacksCount: 6,
+        spacerGifsCount: 12,
+        marginHacksCount: 8,
       },
       proposedNextSteps: [
-        "Isolate legacy includes and migrate structural fragments to Next.js root layout templates.",
-        "Translate unencapsulated client-side script blocks to state-managed React client components.",
+        "Isolate legacy server includes and translate to Next.js static layouts.",
+        "Refactor global setInterval loops into state-managed React hooks.",
       ],
     };
 
-    // 3. Assert strict validation boundaries
+    // 4. Force string arguments through the Zod validation firewall
     const validatedData = legacyDebtAnalysisSchema.parse(rawPayloadObject);
 
-    // 4. Return ONLY the partial slice of mutated states to the graph engine
-    return {
-      status: "RESEARCHING",
-      extractedDebt: {
-        rawSqlBlocks: validatedData.extractedQueries,
-        inlineScriptBlocks: validatedData.inlineScripts,
-        inlineStyles: validatedData.styleInjections,
+    // 5. Commit state mutations and relational sub-tables back to SQLite
+    await db.pipelineRun.update({
+      where: { id: runId },
+      data: {
+        status: "RESEARCHING", // Advance the state-machine status flag
         layoutTablesCount: validatedData.metrics.layoutTablesCount,
         spacerGifsCount: validatedData.metrics.spacerGifsCount,
+        queries: {
+          create: validatedData.extractedQueries.map((q) => ({ rawSql: q })),
+        },
+        scripts: {
+          create: validatedData.inlineScripts.map((s) => ({ rawScript: s })),
+        },
+        styles: {
+          create: validatedData.styleInjections.map((st) => ({ rawStyle: st })),
+        },
       },
-    };
+    });
+
+    console.log(
+      `✅ [Node: ParserAgent] Checkpoint saved. State successfully promoted to "RESEARCHING".`,
+    );
   } catch (error: any) {
     console.error(
-      `🚨 [Node: ParserAgent] Critical operational boundary crash:`,
+      `🚨 [Node: ParserAgent] Operational loop checkpoint failure:`,
       error.message,
     );
-    return {
-      status: "FAILED",
-      compilationErrors: [
-        ...state.compilationErrors,
-        `Parser schema violation: ${error.message}`,
-      ],
-    };
+    await db.pipelineRun.update({
+      where: { id: runId },
+      data: { status: "FAILED" },
+    });
+    // Add compilation error tracking
+    await db.compilationError.create({
+      data: {
+        errorMessage: `Parser validation crash: ${error.message}`,
+        pipelineRunId: runId,
+      },
+    });
   }
 }
