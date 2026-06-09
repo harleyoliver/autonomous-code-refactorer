@@ -1,60 +1,63 @@
-import type { MigrationGraphState } from "../graph/state.js";
+import { db } from "../utils/db.js";
 
 /**
- * ARCHITECTURAL NODE: ResearcherAgent
- * Footprint: (state: MigrationGraphState) => Promise<Partial<MigrationGraphState>>
- * * Inspects the extracted legacy debt tokens, executes a localized lookup
- * against approved corporate design standards, and appends modern UI tokens.
+ * STATE-GRAPH NODE: ResearcherAgent
+ * Pulls the current run metrics from the database, runs a localized design-token
+ * cross-reference map, and promotes the state checkpoint to "SYNTHESIZING".
  */
-export async function researcherAgentNode(
-  state: MigrationGraphState,
-): Promise<Partial<MigrationGraphState>> {
+export async function researcherAgentNode(runId: string): Promise<void> {
   console.log(
-    "🔍 [Node: ResearcherAgent] Querying corporate design system tokens matching extracted debt...",
+    `🔍 [Node: ResearcherAgent] Executing semantic design-token mapping for Run ID: ${runId}`,
   );
 
-  // Defensive Guard: If a previous node failed or skipped debt extraction, this node halts operations safely
-  if (!state.extractedDebt) {
-    return {
-      status: "FAILED",
-      compilationErrors: [
-        ...state.compilationErrors,
-        "Researcher failure: No extracted legacy debt tokens available to map matching design styles.",
-      ],
-    };
+  // 1. Fetch the run checkpoint tracking record along with its child relational lists
+  const record = await db.pipelineRun.findUnique({
+    where: { id: runId },
+    include: { scripts: true },
+  });
+
+  if (!record) {
+    throw new Error(
+      `[ResearcherAgent] Database record missing for Run ID: ${runId}`,
+    );
   }
 
-  // Artificial execution delay mimicking local similarity search latency metrics
-  await new Promise((resolve) => setTimeout(resolve, 500));
+  // Artificial execution latency simulating semantic vector search metrics
+  await new Promise((resolve) => setTimeout(resolve, 400));
 
   const systemDesignTokens: string[] = [];
 
-  // SYSTEMATIC MATCHING LOGIC (Simulating Semantic Vector Distance Matching)
-  if (state.extractedDebt.layoutTablesCount > 0) {
+  // 2. Localized Matching Rules (Simulating Similarity Distance Search)
+  if (record.layoutTablesCount > 0) {
     systemDesignTokens.push(
-      "Tailwind Framework Target: Use layout primitives like 'grid' and 'flex' with explicit responsive mobile bounds ('grid-cols-1 md:grid-cols-3').",
+      "Tailwind Framework Target: Translate table containers to modern flex-wrap or CSS grids ('grid grid-cols-1 md:grid-cols-3').",
     );
   }
 
-  if (state.extractedDebt.inlineScriptBlocks.length > 0) {
+  if (record.scripts.length > 0) {
     systemDesignTokens.push(
-      "React Runtime Policy: Enforce strict encapsulation hooks ('useState', 'useEffect'). All intervals must return an explicit clean-up unmount un-register signature.",
-    );
-  }
-
-  if (state.extractedDebt.inlineStyles.length > 0) {
-    systemDesignTokens.push(
-      "Corporate Branding Token: Primary corporate navy color must map strictly to 'bg-[#002855]'. Accent highlight borders must map strictly to 'border-[#FF8200]'.",
+      "React Runtime Policy: Encapsulate asynchronous loops inside structural 'useEffect' lifecycle hooks with explicit unmount cleanups.",
     );
   }
 
   console.log(
-    `✅ [Node: ResearcherAgent] Extracted ${systemDesignTokens.length} matching corporate design directives.`,
+    `✅ [Node: ResearcherAgent] Extracted ${systemDesignTokens.length} corporate layout directives.`,
   );
 
-  // Return ONLY the slice of state modifications we are authorized to alter
-  return {
-    status: "SYNTHESIZING",
-    designContextTokens: systemDesignTokens,
-  };
+  // 3. Save matching design tokens directly into the database styles table and advance status
+  await db.pipelineRun.update({
+    where: { id: runId },
+    data: {
+      status: "SYNTHESIZING", // Automatically advance state-machine timeline
+      styles: {
+        create: systemDesignTokens.map((token) => ({
+          rawStyle: `DESIGN_DIRECTIVE: ${token}`,
+        })),
+      },
+    },
+  });
+
+  console.log(
+    `✅ [Node: ResearcherAgent] Checkpoint saved. State successfully promoted to "SYNTHESIZING".`,
+  );
 }
