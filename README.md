@@ -11,24 +11,24 @@ This repository is built as a complete technical case study demonstrating determ
 ### 🏗️ Repository Architecture
 
 ```text
-intranet-migration-engine/
-├── src/                         # Core Modernization Pipeline (LangGraph.js Engine)
-│   ├── agents/                  # Specialized LLM Agents (Parser, Generator, Validator)
-│   ├── graph/                   # State Machine Orchestration Loops
-│   ├── schemas/                 # Strict Type & Output Validations
-│   └── utils/                   # AST Parsers and Utility Handlers
+autonomous-code-refactorer/
+├── src/                         # Core Modernization Pipeline Layer
+│   ├── agents/                  # Specialized Graph Processing Nodes
+│   │   ├── parser.ts            # Local regex-driven macro parsing node
+│   │   └── researcher.ts        # Corporate design-token similarity lookup engine
+│   ├── graph/                   # State Machine Orchestration Core
+│   │   └── state.ts             # Central type-safe shared state contracts
+│   ├── schemas/                 # Strict Runtime Input/Output Firewalls
+│   │   ├── validation.ts        # Zod schema for legacy debt validation
+│   │   └── component.ts         # Zod schema for synthesized React components
+│   └── utils/                   # Asynchronous Data I/O & Transport Utilities
+│       ├── reader.ts            # Local asynchronous file mesh scanner
+│       ├── tokenizer.ts         # Regex-driven technical debt identifier
+│       └── bedrock.ts           # Centralized Amazon Bedrock client wrapper
 ├── fixtures/                    # Target Legacy Workspace (2015 Intranet Sandbox)
 │   ├── infrastructure-status.cfm # SCADA Database Query & Load Overpressure Grid
 │   └── legacy-intranet/         # Interconnected Monolithic Application Mesh
-│       ├── index.cfm            # Dashboard featuring Inline JS Carousel & LDAP Lookup
-│       ├── news-category.cfm    # Document Stream parsing XML SOAP Envelopes
-│       ├── news-detail.cfm      # Parameterized Deep-Link Article Template
-│       ├── forms/
-│       │   └── timesheet.cfm    # Tabular HR Input Data & Verification Framework
-│       ├── policies/
-│       │   └── index.cfm        # Documentation Category Tree Navigation Sidebar
-│       └── includes/            # Server-Side Layout Template Fragments (Header/Footer)
-└── TRANSLATION_MATRIX.md        # AI System Prompt Architecture Ruleset
+└── TRANSLATION_MATRIX.md        # AI Structural Translation Ruleset
 ```
 
 ---
@@ -67,11 +67,3 @@ To wipe the running node server out of local memory space, execute:
 ```bash
 docker rm -f legacy-intranet-server
 ```
-
----
-
-## 🛠️ Upcoming Implementation Phases (Tuesday Launch)
-
-- **Phase 1:** Constructing the LangGraph.js unified state controller interface.
-- **Phase 2:** Injecting specialized contextual LLM prompts into parsing and generation loops.
-- **Phase 3:** Wiring deterministic Zod schema evaluators to guarantee bug-free syntax output code.
