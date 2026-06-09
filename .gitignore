@@ -13,12 +13,35 @@ npm-debug.log*
 node_modules/
 /dist
 /.next/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
 
 # Local Database State
 prisma/*.db
 prisma/*.db-journal
 *.sqlite
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
 
 # OS Metadata
 .DS_Store
 .directory
+/src/generated/prisma
+
+# Local System & IDE Configurations
+.DS_Store
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# Prisma v7 Local Generated Client Code
+# Excluded because 'npx prisma generate' reconstructs this tree dynamically on clone
+src/generated/

@@ -1,7 +1,7 @@
-import { PrismaClient } from "@prisma/client";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+// Corrected import targeting the official Prisma v7 server entry point file
+import { PrismaClient } from "../generated/prisma/client.js";
 
-// Bind the runtime adapter securely to local SQLite data target
 const adapter = new PrismaBetterSqlite3({
   url: process.env.DATABASE_URL,
 });
