@@ -1,112 +1,140 @@
-import "dotenv/config";
-import { randomUUID } from "node:crypto";
-import { ingestLegacyMesh } from "./utils/reader.js";
+import "dotenv/config"; // Safely load environment configuration variables
+import * as fs from "fs";
+import * as path from "path";
+import { db } from "./utils/db.js";
 import { parserAgentNode } from "./agents/parser.js";
 import { researcherAgentNode } from "./agents/researcher.js";
-import { generatorAgentNode } from "./agents/generator.js";
-import { db } from "./utils/db.js";
+import { migratorAgentNode } from "./agents/migrator.js";
 
 /**
- * CORE ORCHESTRATION ENGINE
- * Executes an automated multi-agent state graph pipeline backed by SQLite checkpoints.
+ * STATE-GRAPH ROUTER
+ * Directs traffic between nodes based on the current database status string
+ * until a terminal status checkpoint (COMPLETED / FAILED) is logged.
  */
 async function coordinateStateGraph(runId: string) {
   let pipelineActive = true;
   let safetyLoopBreaker = 0;
 
   console.log(
-    `🎬 Beginning Unified State-Graph Execution for Run ID: ${runId}\n`,
+    `\n🌀 [State Graph Router] Initiating pipeline runner loop for Run: ${runId}`,
   );
 
-  while (pipelineActive && safetyLoopBreaker < 10) {
+  while (pipelineActive && safetyLoopBreaker < 12) {
     safetyLoopBreaker++;
 
-    // Read state parameters directly out of the SQLite db row
+    // Fetch the freshest, single-source-of-truth status from SQLite
     const currentRunState = await db.pipelineRun.findUnique({
       where: { id: runId },
-      include: { errors: true },
     });
 
     if (!currentRunState) {
-      console.error(
-        `🚨 Graph Loop Failure: State record could not be found for ID: ${runId}`,
-      );
+      console.error(`🚨 [Graph Router] Record lookup failed for ID: ${runId}`);
+      pipelineActive = false;
       break;
     }
 
     console.log(
-      `🔄 [Graph Router] Step ${safetyLoopBreaker} Checkpoint Status: "${currentRunState.status}"`,
+      `🔄 [Graph Router] Current Step Status: "${currentRunState.status}" (Cycle: ${safetyLoopBreaker})`,
     );
 
-    // CONDITIONAL EDGE ROUTING CIRCUIT
     switch (currentRunState.status) {
       case "PENDING":
+        // Step 1: Run parsing, metrics, and regex tokenizer operations
         await parserAgentNode(runId);
         break;
 
       case "RESEARCHING":
+        // Step 2: Run deep structural recommendations and architecture guidelines
         await researcherAgentNode(runId);
         break;
 
-      case "SYNTHESIZING":
-        // Dynamically invoke the Generator Agent Node
-        await generatorAgentNode(runId);
+      case "MIGRATING":
+        // Step 3: Synthesis of modernization templates & write code to disk
+        await migratorAgentNode(runId);
         break;
 
       case "COMPLETED":
         console.log(
-          `🎉 [Graph Router] Terminal Node Reached: Ingestion pipeline run has concluded successfully.`,
+          `\n🎉 [Graph Router] Pipeline finished successfully! Terminal checkpoint reached.`,
         );
         pipelineActive = false;
         break;
 
       case "FAILED":
-        console.error(
-          `🛑 [Graph Router] Execution aborted. Run transitioned to a FAILED state.`,
+        console.log(
+          `\n🚨 [Graph Router] Pipeline processing aborted due to internal validation errors.`,
         );
         pipelineActive = false;
         break;
 
       default:
-        console.log(`🏁 [Graph Router] Unhandled routing tag.`);
+        console.error(
+          `🚨 [Graph Router] Encountered unrecognized status state: ${currentRunState.status}`,
+        );
         pipelineActive = false;
         break;
     }
   }
 
-  // Final database introspection review
-  const finalAudit = await db.pipelineRun.findUnique({
-    where: { id: runId },
-    include: { queries: true, scripts: true, styles: true },
-  });
-
-  if (finalAudit) {
-    console.log("\n📊 Final Local SQLite Database Audit Matrix:");
-    console.log(
-      "======================================================================",
-    );
-    console.log(`[Run ID]:           ${finalAudit.id}`);
-    console.log(`[Final State]:      ${finalAudit.status}`);
-    console.log(`[SQL Queries Rec]:  Count: ${finalAudit.queries.length}`);
-    console.log(
-      `[Design Rules]:     Count: ${finalAudit.styles.filter((s) => s.rawStyle.startsWith("DESIGN_DIRECTIVE")).length}`,
-    );
-    console.log(
-      `[React Code Size]:  ${finalAudit.targetTypeScriptComponent?.length || 0} code characters.`,
-    );
-    console.log(
-      "======================================================================",
+  if (safetyLoopBreaker >= 12) {
+    console.warn(
+      "⚠️ [Graph Router] Circuit breaker triggered! Terminated to prevent an infinite loop.",
     );
   }
 }
 
-async function startPipelineRun() {
-  console.log("🔄 Bootstrapping state-machine architecture...\n");
-  const targetPath = "fixtures/legacy-intranet/index.cfm";
+/**
+ * APPLICATION ENTRY POINT
+ * Initializes the database entry, extracts raw source files,
+ * and passes management control to the state-graph orchestrator.
+ */
+async function bootstrapPipeline() {
+  console.log("🏁 Launching Migration Analysis Engine...");
 
-  const fileMesh = await ingestLegacyMesh(targetPath);
-  const nextRunId = randomUUID();
+  const targetFileRelativePath = "fixtures/infrastructure-status.cfm";
+  const absolutePath = path.resolve(targetFileRelativePath);
 
+  // Validate the targeted file exists on disk
+  if (!fs.existsSync(absolutePath)) {
+    console.warn(`⚠️ Target file not found at: ${targetFileRelativePath}`);
+    console.log(
+      "Creating a sample legacy file to proceed with the analysis demo...",
+    );
+
+    // Auto-create a mock directory and legacy ColdFusion test file if missing
+    fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
+    fs.writeFileSync(
+      absolutePath,
+      `
+      <cfoutput>
+        <h2>SCADA Overpressure Grid</h2>
+        <cfquery name="GetPressureAlerts" datasource="scada_db">
+          SELECT alert_id, pressure_psi, node_location
+          FROM pressure_readings
+          WHERE alert_level = 'CRITICAL'
+        </cfquery>
+        
+        <table border="1" cellpadding="5" cellspacing="0">
+          <cfloop query="GetPressureAlerts">
+            <tr><td>#node_location# (Alert)</td></tr>
+          </cfloop>
+        </table>
+      </cfoutput>
+    `.trim(),
+    );
+  }
+
+  // Read file data
+  const rawFileContents = fs.readFileSync(absolutePath, "utf8");
+
+  // Establish unique transaction variables
+  const nextRunId = `run_${Date.now()}`;
+  const fileMesh = {
+    targetPath: targetFileRelativePath,
+    sanitizedContent: rawFileContents,
+  };
+
+  // Create the persistent database record tracking our pipeline process
   await db.pipelineRun.create({
     data: {
       id: nextRunId,
@@ -120,10 +148,17 @@ async function startPipelineRun() {
     },
   });
 
+  console.log(
+    `💾 [Database Initialized] Saved run record "${nextRunId}" to SQLite.`,
+  );
+
+  // Delegate control to the state graph router loop
   await coordinateStateGraph(nextRunId);
-  console.log("\n🏁 Graph execution loop safely cycled down.");
 }
 
-startPipelineRun().catch((error) => {
-  console.error("\n🚨 Monolithic orchestration failure:", error.message);
-});
+// Fire the application
+bootstrapPipeline()
+  .catch((err) =>
+    console.error("🚨 Pipeline crash during bootstrap:", err.message),
+  )
+  .finally(() => db.$disconnect());

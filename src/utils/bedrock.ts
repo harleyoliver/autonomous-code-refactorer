@@ -2,112 +2,189 @@ import {
   BedrockRuntimeClient,
   InvokeModelCommand,
 } from "@aws-sdk/client-bedrock-runtime";
-import {
-  COMPILER_SYSTEM_PROMPT,
-  DEBT_ANALYSIS_TOOL_SPEC,
-} from "../prompts/migration.js";
 
-const accessKeyId = process.env["AWS_ACCESS_KEY_ID"];
-const secretAccessKey = process.env["AWS_SECRET_ACCESS_KEY"];
-const region = process.env["AWS_REGION"] || "us-east-1";
-
-if (!accessKeyId || !secretAccessKey) {
-  throw new Error(
-    "🚨 Critical AWS SDK Initialization Failure: Local credentials registry empty. Verify your un-tracked .env configuration parameters.",
-  );
-}
-
-/**
- * Centrally Managed, Isolated AWS Bedrock Runtime Client Gateway Stream
- */
-export const bedrockClient = new BedrockRuntimeClient({
-  region,
-  credentials: {
-    accessKeyId,
-    secretAccessKey,
-  },
+// Initialize the AWS communication client using the region from your .env file
+const client = new BedrockRuntimeClient({
+  region: process.env.AWS_REGION || "us-east-1",
 });
 
 /**
- * ARMED TRANSPORT LAYER SERVICE
- * Accepts raw source code text, wraps it cleanly in our strict system prompts
- * and tool-calling JSON schemas, and manages the network execution boundary.
+ * Sends code text over the network to Amazon Nova Lite for structured analysis.
+ * If fallbackActive is true, it skips the network and returns a simple template string.
  */
 export async function invokeArmedDebtParser(
-  rawSourceCode: string,
-  fallbackActive: boolean = true,
+  rawCode: string,
+  fallbackActive: boolean,
 ): Promise<string> {
-  const targetModelId = "anthropic.claude-sonnet-4-6";
-
-  // Resilient Local Bypass to protect your velocity while the AWS Support ticket processes
   if (fallbackActive) {
     console.log(
-      "⚠️ [Bedrock Service] Local Bypass Active: Simulating schema-conforming tool execution payload...",
+      "ℹ️ [AWS Bedrock] Simulation active: Returning local template data.",
     );
-    await new Promise((resolve) => setTimeout(resolve, 300));
-
-    // Emulating the exact structural JSON payload Claude emits when triggering our spec
     return JSON.stringify({
-      tool_use: {
-        name: "submit_debt_analysis",
-        input: {
-          fileTarget: "fixtures/legacy-intranet/index.cfm",
-          hasServerSideLogic: true,
-          extractedQueries: [
-            "SELECT pipe_id, sector_zone FROM pipeline_core WHERE status = 'ACTIVE'",
-          ],
-          inlineScripts: [
-            "setInterval(function() { currentCarouselIndex = (currentCarouselIndex + 1) % 3; }, 4000);",
-          ],
-          styleInjections: [
-            "font-family: 'Courier New'",
-            "background-color: #002855",
-          ],
-          metrics: {
-            layoutTablesCount: 4,
-            spacerGifsCount: 12,
-            marginHacksCount: 8,
-          },
-          proposedNextSteps: [
-            "Extract embedded SQL blocks into a separate modular data repository layer.",
-            "Refactor brittle global timing carousels into encapsulated React useEffect loops.",
-          ],
-        },
-      },
+      hasServerSideLogic: true,
+      proposedNextSteps: [
+        "Isolate inline raw SQL and replace with programmatic Prisma ORM queries.",
+        "Refactor legacy ColdFusion nested <table border='1'> layouts to clean Tailwind CSS tables.",
+        "Secure overpressure monitoring alerts behind custom Next.js API authorization hooks.",
+      ],
     });
   }
 
-  // BUILD THE COGNITIVE ENVELOPE FOR PRODUCTION
-  const inputPayload = {
-    anthropic_version: "bedrock-2023-05-31",
-    max_tokens: 2000,
-    temperature: 0.1, // Locked ultra-low for deterministic code analysis stability
-    system: COMPILER_SYSTEM_PROMPT, // Behavioral boundaries
-    messages: [
-      {
-        role: "user",
-        content: [
-          {
-            type: "text",
-            text: `Analyze this legacy source code asset:\n\n${rawSourceCode}`,
-          },
-        ],
-      },
-    ],
-    tools: [DEBT_ANALYSIS_TOOL_SPEC], // Enforcing tool schema criteria
-    tool_choice: { type: "auto" },
-  };
+  console.log(
+    "📡 [AWS Bedrock] Establishing live connection to Amazon Nova Lite...",
+  );
+
+  const modelId = "amazon.nova-lite-v1:0";
+
+  // Prompt forcing the AI engine to output clean, predictable data formats
+  const promptText = `
+You are a software migration utility. Analyze this legacy code block.
+You must return a raw JSON object matching this exact format:
+{
+  "hasServerSideLogic": true,
+  "proposedNextSteps": ["Step 1 description text", "Step 2 description text"]
+}
+Do not write any markdown code blocks, conversational introductions, or commentary. Return only the raw JSON object string.
+
+Legacy Source Code:
+${rawCode}
+  `;
 
   const command = new InvokeModelCommand({
-    modelId: targetModelId,
+    modelId: modelId,
     contentType: "application/json",
     accept: "application/json",
-    body: JSON.stringify(inputPayload),
+    body: JSON.stringify({
+      messages: [
+        {
+          role: "user",
+          content: [{ text: promptText }],
+        },
+      ],
+      inferenceConfig: {
+        temperature: 0.1,
+        maxTokens: 2000,
+      },
+    }),
   });
 
-  console.log(
-    `📡 Transmitting code payload envelope safely to Bedrock via tool gateway (${targetModelId})...`,
+  const response = await client.send(command);
+  const responseBody = new TextDecoder().decode(response.body);
+  const parsedData = JSON.parse(responseBody);
+
+  return parsedData.output.message.content[0].text;
+}
+
+/**
+ * Sends legacy CFML and extracted parameters to Amazon Nova Lite to output a clean TSX/Tailwind component.
+ * Supports offline simulation mode.
+ */
+export async function invokeArmedDebtMigrator(
+  rawCode: string,
+  queries: string[],
+  directives: string[],
+  fallbackActive: boolean,
+): Promise<string> {
+  if (fallbackActive) {
+    return `
+import React from 'react';
+
+interface PressureReading {
+  alertId: string;
+  pressurePsi: number;
+  nodeLocation: string;
+}
+
+interface ModernGridProps {
+  alerts?: PressureReading[];
+}
+
+export const OverpressureMonitorGrid: React.FC<ModernGridProps> = ({ 
+  alerts = [
+    { alertId: "1", pressurePsi: 145, nodeLocation: "Grid Node A-12 (CRITICAL)" },
+    { alertId: "2", pressurePsi: 160, nodeLocation: "Grid Sector B-4 (CRITICAL)" }
+  ] 
+}) => {
+  return (
+    <div className="p-6 max-w-4xl mx-auto bg-slate-900 border border-slate-800 rounded-xl shadow-lg">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-xl font-semibold text-rose-500 tracking-tight">
+          ⚠️ SCADA Overpressure Active Monitoring
+        </h2>
+        <span className="px-3 py-1 text-xs font-semibold text-rose-400 bg-rose-950/50 border border-rose-900 rounded-full animate-pulse">
+          LIVE SYSTEM STATUS
+        </span>
+      </div>
+
+      <div className="overflow-hidden border border-slate-800 rounded-lg bg-slate-950">
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr className="border-b border-slate-800 bg-slate-900/50 text-xs font-semibold text-slate-400 uppercase tracking-wider">
+              <th className="px-6 py-4">Node Location</th>
+              <th className="px-6 py-4">Status Severity</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-900 text-sm text-slate-300">
+            {alerts.map((alert) => (
+              <tr key={alert.alertId} className="hover:bg-slate-900/30 transition-colors">
+                <td className="px-6 py-4 font-medium text-slate-200">
+                  {alert.nodeLocation}
+                </td>
+                <td className="px-6 py-4">
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-950 text-red-300 border border-red-900/50">
+                    CRITICAL ({alert.pressurePsi} PSI)
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="mt-4 text-xs text-slate-500 italic">
+        * System automatically synchronized. Raw inline queries successfully refactored to Prisma operations.
+      </div>
+    </div>
   );
-  const response = await bedrockClient.send(command);
-  return new TextDecoder("utf-8").decode(response.body);
+};
+
+export default OverpressureMonitorGrid;
+    `.trim();
+  }
+
+  console.log(
+    "📡 [AWS Bedrock] Requesting AI Modernization Translation via Nova Lite...",
+  );
+
+  const promptText = `
+You are a senior software architect specializing in legacy migrations. 
+Analyze this legacy ColdFusion code, its extracted SQL queries, and architectural instructions.
+Synthesize this into a single, clean, beautiful TypeScript React component.
+
+Legacy Code:
+${rawCode}
+
+Extracted Database Details:
+${queries.join("\n")}
+
+Architectural Directives:
+${directives.join("\n")}
+
+Return ONLY raw typescript/JSX code. Do not wrap the code in markdown code blocks like \`\`\`tsx, and do not write conversational introductions or commentary. Start directly with the React imports.
+  `;
+
+  const command = new InvokeModelCommand({
+    modelId: "amazon.nova-lite-v1:0",
+    contentType: "application/json",
+    accept: "application/json",
+    body: JSON.stringify({
+      messages: [{ role: "user", content: [{ text: promptText }] }],
+      inferenceConfig: { temperature: 0.1, maxTokens: 4000 },
+    }),
+  });
+
+  const response = await client.send(command);
+  const responseBody = new TextDecoder().decode(response.body);
+  const parsedData = JSON.parse(responseBody);
+
+  return parsedData.output.message.content[0].text;
 }
