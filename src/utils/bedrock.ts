@@ -1,11 +1,11 @@
 import {
-  BedrockRuntimeClient,
-  InvokeModelCommand,
+	BedrockRuntimeClient,
+	InvokeModelCommand,
 } from "@aws-sdk/client-bedrock-runtime";
 
 // Initialize the AWS communication client using the region from your .env file
 const client = new BedrockRuntimeClient({
-  region: process.env.AWS_REGION || "us-east-1",
+	region: process.env.AWS_REGION || "us-east-1",
 });
 
 /**
@@ -13,31 +13,31 @@ const client = new BedrockRuntimeClient({
  * If fallbackActive is true, it skips the network and returns a simple template string.
  */
 export async function invokeArmedDebtParser(
-  rawCode: string,
-  fallbackActive: boolean,
+	rawCode: string,
+	fallbackActive: boolean,
 ): Promise<string> {
-  if (fallbackActive) {
-    console.log(
-      "ℹ️ [AWS Bedrock] Simulation active: Returning local template data.",
-    );
-    return JSON.stringify({
-      hasServerSideLogic: true,
-      proposedNextSteps: [
-        "Isolate inline raw SQL and replace with programmatic Prisma ORM queries.",
-        "Refactor legacy ColdFusion nested <table border='1'> layouts to clean Tailwind CSS tables.",
-        "Secure overpressure monitoring alerts behind custom Next.js API authorization hooks.",
-      ],
-    });
-  }
+	if (fallbackActive) {
+		console.log(
+			"[AWS Bedrock] Simulation active: Returning local template data.",
+		);
+		return JSON.stringify({
+			hasServerSideLogic: true,
+			proposedNextSteps: [
+				"Isolate inline raw SQL and replace with programmatic Prisma ORM queries.",
+				"Refactor legacy ColdFusion nested <table border='1'> layouts to clean Tailwind CSS tables.",
+				"Secure overpressure monitoring alerts behind custom Next.js API authorization hooks.",
+			],
+		});
+	}
 
-  console.log(
-    "📡 [AWS Bedrock] Establishing live connection to Amazon Nova Lite...",
-  );
+	console.log(
+		"[AWS Bedrock] Establishing live connection to Amazon Nova Lite...",
+	);
 
-  const modelId = "amazon.nova-lite-v1:0";
+	const modelId = "amazon.nova-lite-v1:0";
 
-  // Prompt forcing the AI engine to output clean, predictable data formats
-  const promptText = `
+	// Prompt forcing the AI engine to output clean, predictable data formats
+	const promptText = `
 You are a software migration utility. Analyze this legacy code block.
 You must return a raw JSON object matching this exact format:
 {
@@ -50,29 +50,29 @@ Legacy Source Code:
 ${rawCode}
   `;
 
-  const command = new InvokeModelCommand({
-    modelId: modelId,
-    contentType: "application/json",
-    accept: "application/json",
-    body: JSON.stringify({
-      messages: [
-        {
-          role: "user",
-          content: [{ text: promptText }],
-        },
-      ],
-      inferenceConfig: {
-        temperature: 0.1,
-        maxTokens: 2000,
-      },
-    }),
-  });
+	const command = new InvokeModelCommand({
+		modelId: modelId,
+		contentType: "application/json",
+		accept: "application/json",
+		body: JSON.stringify({
+			messages: [
+				{
+					role: "user",
+					content: [{ text: promptText }],
+				},
+			],
+			inferenceConfig: {
+				temperature: 0.1,
+				maxTokens: 2000,
+			},
+		}),
+	});
 
-  const response = await client.send(command);
-  const responseBody = new TextDecoder().decode(response.body);
-  const parsedData = JSON.parse(responseBody);
+	const response = await client.send(command);
+	const responseBody = new TextDecoder().decode(response.body);
+	const parsedData = JSON.parse(responseBody);
 
-  return parsedData.output.message.content[0].text;
+	return parsedData.output.message.content[0].text;
 }
 
 /**
@@ -80,13 +80,13 @@ ${rawCode}
  * Supports offline simulation mode.
  */
 export async function invokeArmedDebtMigrator(
-  rawCode: string,
-  queries: string[],
-  directives: string[],
-  fallbackActive: boolean,
+	rawCode: string,
+	queries: string[],
+	directives: string[],
+	fallbackActive: boolean,
 ): Promise<string> {
-  if (fallbackActive) {
-    return `
+	if (fallbackActive) {
+		return `
 import React from 'react';
 
 interface PressureReading {
@@ -149,13 +149,13 @@ export const OverpressureMonitorGrid: React.FC<ModernGridProps> = ({
 
 export default OverpressureMonitorGrid;
     `.trim();
-  }
+	}
 
-  console.log(
-    "📡 [AWS Bedrock] Requesting AI Modernization Translation via Nova Lite...",
-  );
+	console.log(
+		"[AWS Bedrock] Requesting AI Modernization Translation via Nova Lite...",
+	);
 
-  const promptText = `
+	const promptText = `
 You are a senior software architect specializing in legacy migrations. 
 Analyze this legacy ColdFusion code, its extracted SQL queries, and architectural instructions.
 Synthesize this into a single, clean, beautiful TypeScript React component.
@@ -172,19 +172,19 @@ ${directives.join("\n")}
 Return ONLY raw typescript/JSX code. Do not wrap the code in markdown code blocks like \`\`\`tsx, and do not write conversational introductions or commentary. Start directly with the React imports.
   `;
 
-  const command = new InvokeModelCommand({
-    modelId: "amazon.nova-lite-v1:0",
-    contentType: "application/json",
-    accept: "application/json",
-    body: JSON.stringify({
-      messages: [{ role: "user", content: [{ text: promptText }] }],
-      inferenceConfig: { temperature: 0.1, maxTokens: 4000 },
-    }),
-  });
+	const command = new InvokeModelCommand({
+		modelId: "amazon.nova-lite-v1:0",
+		contentType: "application/json",
+		accept: "application/json",
+		body: JSON.stringify({
+			messages: [{ role: "user", content: [{ text: promptText }] }],
+			inferenceConfig: { temperature: 0.1, maxTokens: 4000 },
+		}),
+	});
 
-  const response = await client.send(command);
-  const responseBody = new TextDecoder().decode(response.body);
-  const parsedData = JSON.parse(responseBody);
+	const response = await client.send(command);
+	const responseBody = new TextDecoder().decode(response.body);
+	const parsedData = JSON.parse(responseBody);
 
-  return parsedData.output.message.content[0].text;
+	return parsedData.output.message.content[0].text;
 }

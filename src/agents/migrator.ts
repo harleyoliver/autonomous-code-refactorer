@@ -9,28 +9,28 @@ import { synthesizedComponentSchema } from "../schemas/component.js";
  * React component, passes it through the schema firewall, and writes it to disk.
  */
 export async function migratorAgentNode(runId: string): Promise<void> {
-  console.log(
-    `✨ [Node: MigratorAgent] Transmuting design tokens into modern React views for Run ID: ${runId}`,
-  );
+	console.log(
+		`✨ [Node: MigratorAgent] Transmuting design tokens into modern React views for Run ID: ${runId}`,
+	);
 
-  // 1. Fetch active state context record from physical storage
-  const record = await db.pipelineRun.findUnique({
-    where: { id: runId },
-    include: { queries: true, scripts: true, styles: true },
-  });
+	// 1. Fetch active state context record from physical storage
+	const record = await db.pipelineRun.findUnique({
+		where: { id: runId },
+		include: { queries: true, scripts: true, styles: true },
+	});
 
-  if (!record) {
-    throw new Error(
-      `[MigratorAgent] Missing database checkpoint state for Run ID: ${runId}`,
-    );
-  }
+	if (!record) {
+		throw new Error(
+			`[MigratorAgent] Missing database checkpoint state for Run ID: ${runId}`,
+		);
+	}
 
-  try {
-    // Artificial execution latency simulating semantic synthesis
-    await new Promise((resolve) => setTimeout(resolve, 600));
+	try {
+		// Artificial execution latency simulating semantic synthesis
+		await new Promise((resolve) => setTimeout(resolve, 600));
 
-    // 2. High-Fidelity Responsive React Component Mock String
-    const mockModernComponentCode = `
+		// 2. High-Fidelity Responsive React Component Mock String
+		const mockModernComponentCode = `
 import React, { useState } from 'react';
 import { Activity } from 'lucide-react';
 
@@ -55,75 +55,79 @@ export default function InfrastructureStatus() {
 }
     `.trim();
 
-    // 3. Shape object arguments to conform to our semantic validation schema
-    const rawAgentOutputPayload = {
-      componentName: "InfrastructureStatus",
-      targetTargetFolder: "src/components/modernized",
-      generatedCode: mockModernComponentCode,
-      usedDependencies: ["react", "lucide-react"],
-    };
+		// 3. Shape object arguments to conform to our semantic validation schema
+		const rawAgentOutputPayload = {
+			componentName: "InfrastructureStatus",
+			targetTargetFolder: "src/components/modernized",
+			generatedCode: mockModernComponentCode,
+			usedDependencies: ["react", "lucide-react"],
+		};
 
-    console.log(
-      "🛡️ [Node: MigratorAgent] Passing string code through component firewall guards...",
-    );
+		console.log(
+			"[Node: MigratorAgent] Passing string code through component firewall guards...",
+		);
 
-    // 4. Assert strict Zod refinements (blocking legacy CF tags or presentation styles)
-    const validatedComponent = synthesizedComponentSchema.parse(
-      rawAgentOutputPayload,
-    );
-    console.log(
-      "✅ [Node: MigratorAgent] Refinement metrics verified safe. No legacy leakage detected.",
-    );
+		// 4. Assert strict Zod refinements (blocking legacy CF tags or presentation styles)
+		const validatedComponent = synthesizedComponentSchema.parse(
+			rawAgentOutputPayload,
+		);
+		console.log(
+			"[Node: MigratorAgent] Refinement metrics verified safe. No legacy leakage detected.",
+		);
 
-    // 5. Build directory structure if it doesn't exist
-    const targetDirectory = path.join(
-      process.cwd(),
-      validatedComponent.targetTargetFolder,
-    );
-    const targetFilePath = path.join(
-      targetDirectory,
-      `${validatedComponent.componentName}.tsx`,
-    );
+		// 5. Build directory structure if it doesn't exist
+		const targetDirectory = path.join(
+			process.cwd(),
+			validatedComponent.targetTargetFolder,
+		);
+		const targetFilePath = path.join(
+			targetDirectory,
+			`${validatedComponent.componentName}.tsx`,
+		);
 
-    if (!fs.existsSync(targetDirectory)) {
-      console.log(
-        `📁 [Node: MigratorAgent] Creating missing directory structure at ${targetDirectory}`,
-      );
-      fs.mkdirSync(targetDirectory, { recursive: true });
-    }
+		if (!fs.existsSync(targetDirectory)) {
+			console.log(
+				`[Node: MigratorAgent] Creating missing directory structure at ${targetDirectory}`,
+			);
+			fs.mkdirSync(targetDirectory, { recursive: true });
+		}
 
-    // 6. Write the synthesized React component to the drive
-    console.log(
-      `💾 [Node: MigratorAgent] Writing modernized component to ${targetFilePath}`,
-    );
-    fs.writeFileSync(targetFilePath, validatedComponent.generatedCode, "utf-8");
+		// 6. Write the synthesized React component to the drive
+		console.log(
+			`[Node: MigratorAgent] Writing modernized component to ${targetFilePath}`,
+		);
+		fs.writeFileSync(
+			targetFilePath,
+			validatedComponent.generatedCode,
+			"utf-8",
+		);
 
-    // 7. Apply the mutated component string and advance status parameters
-    await db.pipelineRun.update({
-      where: { id: runId },
-      data: {
-        status: "COMPLETED", // Safely promote the state-machine timeline to terminal success
-        targetTypeScriptComponent: validatedComponent.generatedCode,
-      },
-    });
+		// 7. Apply the mutated component string and advance status parameters
+		await db.pipelineRun.update({
+			where: { id: runId },
+			data: {
+				status: "COMPLETED", // Safely promote the state-machine timeline to terminal success
+				targetTypeScriptComponent: validatedComponent.generatedCode,
+			},
+		});
 
-    console.log(
-      `✅ [Node: MigratorAgent] Checkpoint saved. State successfully promoted to "COMPLETED".`,
-    );
-  } catch (error: any) {
-    console.error(
-      `🚨 [Node: MigratorAgent] Synthesis verification breach:`,
-      error.message,
-    );
-    await db.pipelineRun.update({
-      where: { id: runId },
-      data: { status: "FAILED" },
-    });
-    await db.compilationError.create({
-      data: {
-        errorMessage: `Migrator schema breach: ${error.message}`,
-        pipelineRunId: runId,
-      },
-    });
-  }
+		console.log(
+			`[Node: MigratorAgent] Checkpoint saved. State successfully promoted to "COMPLETED".`,
+		);
+	} catch (error: any) {
+		console.error(
+			`[Node: MigratorAgent] Synthesis verification breach:`,
+			error.message,
+		);
+		await db.pipelineRun.update({
+			where: { id: runId },
+			data: { status: "FAILED" },
+		});
+		await db.compilationError.create({
+			data: {
+				errorMessage: `Migrator schema breach: ${error.message}`,
+				pipelineRunId: runId,
+			},
+		});
+	}
 }
