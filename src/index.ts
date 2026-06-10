@@ -1,140 +1,99 @@
-import "dotenv/config"; // Safely load environment configuration variables
-import * as fs from "fs";
-import * as path from "path";
-import { db } from "./utils/db.js";
+import "dotenv/config";
+import { randomUUID } from "node:crypto";
+import { StateGraph, Annotation, START, END } from "@langchain/langgraph";
+import { ingestLegacyMesh } from "./utils/reader.js";
 import { parserAgentNode } from "./agents/parser.js";
 import { researcherAgentNode } from "./agents/researcher.js";
 import { migratorAgentNode } from "./agents/migrator.js";
+import { db } from "./utils/db.js";
 
-/**
- * STATE-GRAPH ROUTER
- * Directs traffic between nodes based on the current database status string
- * until a terminal status checkpoint (COMPLETED / FAILED) is logged.
- */
-async function coordinateStateGraph(runId: string) {
-  let pipelineActive = true;
-  let safetyLoopBreaker = 0;
+// 1. Define the LangGraph State Channel
+// This tells the graph exactly what data object is passed between nodes
+const GraphState = Annotation.Root({
+  runId: Annotation<string>(),
+});
 
-  console.log(
-    `\n🌀 [State Graph Router] Initiating pipeline runner loop for Run: ${runId}`,
-  );
+// 2. Wrap existing database agents into formal LangGraph Nodes
+async function runParser(state: typeof GraphState.State) {
+  await parserAgentNode(state.runId);
+  return {}; // Nodes must return a partial state update; this is fully managed by SQLite
+}
 
-  while (pipelineActive && safetyLoopBreaker < 12) {
-    safetyLoopBreaker++;
+async function runResearcher(state: typeof GraphState.State) {
+  await researcherAgentNode(state.runId);
+  return {};
+}
 
-    // Fetch the freshest, single-source-of-truth status from SQLite
-    const currentRunState = await db.pipelineRun.findUnique({
-      where: { id: runId },
-    });
+async function runMigrator(state: typeof GraphState.State) {
+  await migratorAgentNode(state.runId);
+  return {};
+}
 
-    if (!currentRunState) {
-      console.error(`🚨 [Graph Router] Record lookup failed for ID: ${runId}`);
-      pipelineActive = false;
-      break;
-    }
+// 3. Define the Conditional Routing Edge
+// This acts as the central brain, reading the SQLite status and steering the graph
+async function routeNextNode(state: typeof GraphState.State) {
+  const record = await db.pipelineRun.findUnique({
+    where: { id: state.runId },
+  });
 
-    console.log(
-      `🔄 [Graph Router] Current Step Status: "${currentRunState.status}" (Cycle: ${safetyLoopBreaker})`,
+  if (!record) {
+    console.error(
+      `🚨 [Graph Router] Missing database record for ID: ${state.runId}`,
     );
-
-    switch (currentRunState.status) {
-      case "PENDING":
-        // Step 1: Run parsing, metrics, and regex tokenizer operations
-        await parserAgentNode(runId);
-        break;
-
-      case "RESEARCHING":
-        // Step 2: Run deep structural recommendations and architecture guidelines
-        await researcherAgentNode(runId);
-        break;
-
-      case "MIGRATING":
-        // Step 3: Synthesis of modernization templates & write code to disk
-        await migratorAgentNode(runId);
-        break;
-
-      case "COMPLETED":
-        console.log(
-          `\n🎉 [Graph Router] Pipeline finished successfully! Terminal checkpoint reached.`,
-        );
-        pipelineActive = false;
-        break;
-
-      case "FAILED":
-        console.log(
-          `\n🚨 [Graph Router] Pipeline processing aborted due to internal validation errors.`,
-        );
-        pipelineActive = false;
-        break;
-
-      default:
-        console.error(
-          `🚨 [Graph Router] Encountered unrecognized status state: ${currentRunState.status}`,
-        );
-        pipelineActive = false;
-        break;
-    }
+    return END;
   }
 
-  if (safetyLoopBreaker >= 12) {
-    console.warn(
-      "⚠️ [Graph Router] Circuit breaker triggered! Terminated to prevent an infinite loop.",
-    );
+  console.log(
+    `\n🔀 [Graph Router] Intercepted Database Status: "${record.status}"`,
+  );
+
+  // Map the database string to the exact name of the next LangGraph Node
+  switch (record.status) {
+    case "PENDING":
+      return "parser";
+    case "RESEARCHING":
+      return "researcher";
+    case "MIGRATING":
+      return "migrator";
+    case "COMPLETED":
+      console.log(`🎉 [Graph Router] Terminal State Reached. Exiting graph.`);
+      return END;
+    case "FAILED":
+      console.error(
+        `🛑 [Graph Router] Pipeline Failure Detected. Halting execution.`,
+      );
+      return END;
+    default:
+      return END;
   }
 }
 
-/**
- * APPLICATION ENTRY POINT
- * Initializes the database entry, extracts raw source files,
- * and passes management control to the state-graph orchestrator.
- */
-async function bootstrapPipeline() {
-  console.log("🏁 Launching Migration Analysis Engine...");
+// 4. Compile the Mathematical StateGraph Blueprint
+const builder = new StateGraph(GraphState)
+  .addNode("parser", runParser)
+  .addNode("researcher", runResearcher)
+  .addNode("migrator", runMigrator)
 
-  const targetFileRelativePath = "fixtures/infrastructure-status.cfm";
-  const absolutePath = path.resolve(targetFileRelativePath);
+  // The graph always starts at the parser
+  .addEdge(START, "parser")
 
-  // Validate the targeted file exists on disk
-  if (!fs.existsSync(absolutePath)) {
-    console.warn(`⚠️ Target file not found at: ${targetFileRelativePath}`);
-    console.log(
-      "Creating a sample legacy file to proceed with the analysis demo...",
-    );
+  // After any node finishes, check the database to decide where to go next
+  .addConditionalEdges("parser", routeNextNode)
+  .addConditionalEdges("researcher", routeNextNode)
+  .addConditionalEdges("migrator", routeNextNode);
 
-    // Auto-create a mock directory and legacy ColdFusion test file if missing
-    fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
-    fs.writeFileSync(
-      absolutePath,
-      `
-      <cfoutput>
-        <h2>SCADA Overpressure Grid</h2>
-        <cfquery name="GetPressureAlerts" datasource="scada_db">
-          SELECT alert_id, pressure_psi, node_location
-          FROM pressure_readings
-          WHERE alert_level = 'CRITICAL'
-        </cfquery>
-        
-        <table border="1" cellpadding="5" cellspacing="0">
-          <cfloop query="GetPressureAlerts">
-            <tr><td>#node_location# (Alert)</td></tr>
-          </cfloop>
-        </table>
-      </cfoutput>
-    `.trim(),
-    );
-  }
+// Freeze the blueprint into an executable workflow engine
+const workflow = builder.compile();
 
-  // Read file data
-  const rawFileContents = fs.readFileSync(absolutePath, "utf8");
+// 5. Pipeline Entry Point
+async function startPipelineRun() {
+  console.log("🔄 Bootstrapping LangGraph state-machine architecture...\n");
+  const targetPath = "fixtures/infrastructure-status.cfm";
 
-  // Establish unique transaction variables
-  const nextRunId = `run_${Date.now()}`;
-  const fileMesh = {
-    targetPath: targetFileRelativePath,
-    sanitizedContent: rawFileContents,
-  };
+  const fileMesh = await ingestLegacyMesh(targetPath);
+  const nextRunId = randomUUID();
 
-  // Create the persistent database record tracking our pipeline process
+  // Initialize our SQLite memory bank
   await db.pipelineRun.create({
     data: {
       id: nextRunId,
@@ -148,17 +107,14 @@ async function bootstrapPipeline() {
     },
   });
 
-  console.log(
-    `💾 [Database Initialized] Saved run record "${nextRunId}" to SQLite.`,
-  );
+  console.log(`🎬 Beginning LangGraph Execution for Run ID: ${nextRunId}\n`);
 
-  // Delegate control to the state graph router loop
-  await coordinateStateGraph(nextRunId);
+  // Execute the compiled graph, injecting the initial state
+  await workflow.invoke({ runId: nextRunId });
+
+  console.log("\n🏁 LangGraph execution safely cycled down.");
 }
 
-// Fire the application
-bootstrapPipeline()
-  .catch((err) =>
-    console.error("🚨 Pipeline crash during bootstrap:", err.message),
-  )
-  .finally(() => db.$disconnect());
+startPipelineRun().catch((error) => {
+  console.error("\n🚨 Monolithic orchestration failure:", error.message);
+});
