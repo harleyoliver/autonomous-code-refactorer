@@ -5,6 +5,7 @@ import { ingestLegacyMesh } from "./utils/reader.js";
 import { parserAgentNode } from "./agents/parser.js";
 import { researcherAgentNode } from "./agents/researcher.js";
 import { migratorAgentNode } from "./agents/migrator.js";
+import { criticAgentNode } from "./agents/critic.js";
 import { db } from "./utils/db.js";
 
 // 1. Define the LangGraph State Channel
@@ -25,6 +26,11 @@ async function runResearcher(state: typeof GraphState.State) {
 
 async function runMigrator(state: typeof GraphState.State) {
 	await migratorAgentNode(state.runId);
+	return {};
+}
+
+async function runCritic(state: typeof GraphState.State) {
+	await criticAgentNode(state.runId);
 	return {};
 }
 
@@ -62,6 +68,8 @@ async function routeNextNode(state: typeof GraphState.State) {
 				`[Graph Router] Authorization verified. Proceeding to code synthesis.`,
 			);
 			return "migrator";
+		case "CRITIQUING":
+			return "critic";
 		case "COMPLETED":
 			console.log(
 				`[Graph Router] Terminal State Reached. Exiting graph.`,
@@ -82,10 +90,12 @@ const builder = new StateGraph(GraphState)
 	.addNode("parser", runParser)
 	.addNode("researcher", runResearcher)
 	.addNode("migrator", runMigrator)
+	.addNode("critic", runCritic)
 	.addEdge(START, "parser")
 	.addConditionalEdges("parser", routeNextNode)
 	.addConditionalEdges("researcher", routeNextNode)
-	.addConditionalEdges("migrator", routeNextNode);
+	.addConditionalEdges("migrator", routeNextNode)
+	.addConditionalEdges("critic", routeNextNode);
 
 export const workflow = builder.compile();
 

@@ -10,7 +10,7 @@ import { synthesizedComponentSchema } from "../schemas/component.js";
  */
 export async function migratorAgentNode(runId: string): Promise<void> {
 	console.log(
-		`✨ [Node: MigratorAgent] Transmuting design tokens into modern React views for Run ID: ${runId}`,
+		`[Node: MigratorAgent] Transmuting design tokens into modern React views for Run ID: ${runId}`,
 	);
 
 	// 1. Fetch active state context record from physical storage
@@ -106,13 +106,13 @@ export default function InfrastructureStatus() {
 		await db.pipelineRun.update({
 			where: { id: runId },
 			data: {
-				status: "COMPLETED", // Safely promote the state-machine timeline to terminal success
+				status: "CRITIQUING",
 				targetTypeScriptComponent: validatedComponent.generatedCode,
 			},
 		});
 
 		console.log(
-			`[Node: MigratorAgent] Checkpoint saved. State successfully promoted to "COMPLETED".`,
+			`[Node: MigratorAgent] Component synthesized. State promoted to "CRITIQUING".`,
 		);
 	} catch (error: any) {
 		console.error(
