@@ -35,6 +35,7 @@ model PipelineRun {
 model SqlQuery {
   id            Int         @id @default(autoincrement())
   rawSql        String
+  queryType     String      @default("UNKNOWN") // New column to store READ vs WRITE types
   pipelineRunId String
   pipelineRun   PipelineRun @relation(fields: [pipelineRunId], references: [id], onDelete: Cascade)
 }
@@ -59,3 +60,4 @@ model CompilationError {
   pipelineRunId String
   pipelineRun   PipelineRun @relation(fields: [pipelineRunId], references: [id], onDelete: Cascade)
 }
+
