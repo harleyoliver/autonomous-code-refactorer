@@ -34,22 +34,41 @@ async function runCritic(state: typeof GraphState.State) {
 	return {};
 }
 
-// 3. The Conditional Routing Edge with HitL Gate
-async function routeNextNode(state: typeof GraphState.State) {
+// 3. NEW: The Intelligent Boot Router (Runs immediately on START)
+async function routeFromStart(state: typeof GraphState.State) {
 	const record = await db.pipelineRun.findUnique({
 		where: { id: state.runId },
 	});
 
-	if (!record) {
-		console.error(
-			`[Graph Router] Missing database record for ID: ${state.runId}`,
-		);
-		return END;
-	}
+	if (!record) return END;
 
 	console.log(
-		`\n[Graph Router] Intercepted Database Status: "${record.status}"`,
+		`\n[Graph Boot] Resuming execution from checkpoint: "${record.status}"`,
 	);
+
+	// Jump straight to the correct node based on the physical database state!
+	switch (record.status) {
+		case "PENDING":
+			return "parser";
+		case "RESEARCHING":
+			return "researcher";
+		case "MIGRATING":
+			return "migrator";
+		case "CRITIQUING":
+			return "critic";
+		default:
+			return END;
+	}
+}
+
+// 4. EXISTING: The Standard Edge Router
+async function routeNextNode(state: typeof GraphState.State) {
+	const record = await db.pipelineRun.findUnique({
+		where: { id: state.runId },
+	});
+	if (!record) return END;
+
+	console.log(`\n[Graph Router] State advanced to: "${record.status}"`);
 
 	switch (record.status) {
 		case "PENDING":
@@ -57,16 +76,12 @@ async function routeNextNode(state: typeof GraphState.State) {
 		case "RESEARCHING":
 			return "researcher";
 		case "MIGRATING":
-			// INTERRUPT GATE
 			if (record.humanApproval === "PENDING") {
 				console.log(
-					`[Graph Router] EXECUTION HALTED: Awaiting human review before synthesizing codebase.`,
+					`[Graph Router] EXECUTION HALTED: Awaiting human review.`,
 				);
-				return END; // Kill the Node process while preserving state in SQLite
+				return END;
 			}
-			console.log(
-				`[Graph Router] Authorization verified. Proceeding to code synthesis.`,
-			);
 			return "migrator";
 		case "CRITIQUING":
 			return "critic";
@@ -76,22 +91,23 @@ async function routeNextNode(state: typeof GraphState.State) {
 			);
 			return END;
 		case "FAILED":
-			console.error(
-				`[Graph Router] Pipeline Failure Detected. Halting execution.`,
-			);
+			console.error(`[Graph Router] Pipeline Failure Detected.`);
 			return END;
 		default:
 			return END;
 	}
 }
 
-// 4. Compile the StateGraph Blueprint
+// 5. Compile the Stateless Blueprint
 const builder = new StateGraph(GraphState)
 	.addNode("parser", runParser)
 	.addNode("researcher", runResearcher)
 	.addNode("migrator", runMigrator)
 	.addNode("critic", runCritic)
-	.addEdge(START, "parser")
+
+	// 👈 THE FIX: We dynamically route from START instead of hardcoding to parser
+	.addConditionalEdges(START, routeFromStart)
+
 	.addConditionalEdges("parser", routeNextNode)
 	.addConditionalEdges("researcher", routeNextNode)
 	.addConditionalEdges("migrator", routeNextNode)
@@ -99,7 +115,7 @@ const builder = new StateGraph(GraphState)
 
 export const workflow = builder.compile();
 
-// 5. Initial Pipeline Entry Point
+// 6. Initial Pipeline Entry Point
 async function startPipelineRun() {
 	console.log("Bootstrapping LangGraph state-machine architecture...\n");
 	const targetPath = "fixtures/infrastructure-status.cfm";
@@ -114,28 +130,29 @@ async function startPipelineRun() {
 			fileType: "CFM_MAIN",
 			rawSourceCode: fileMesh.sanitizedContent,
 			status: "PENDING",
-			humanApproval: "PENDING", // Graph will pause when it sees PENDING
+			humanApproval: "PENDING",
 			iterationCount: 1,
 			isSyntaxValidated: false,
 		},
 	});
 
-	console.log(`🎬 Beginning LangGraph Execution for Run ID: ${nextRunId}\n`);
+	console.log(`Beginning LangGraph Execution for Run ID: ${nextRunId}`);
 	await workflow.invoke({ runId: nextRunId });
-	console.log("\nLangGraph execution gracefully paused/completed.");
+	console.log(
+		"\nLangGraph execution hit native breakpoint. Awaiting human approval.",
+	);
 }
 
-// 6. External Re-Awakening Gateway
+// 7. External Re-Awakening Gateway
 export async function resumePipelineRun(runId: string) {
-	console.log(
-		`\nRe-awakening LangGraph State Machine for Run ID: ${runId}\n`,
-	);
+	console.log(`\nRe-awakening LangGraph State Machine for Run ID: ${runId}`);
+
+	// Pass the state payload again so LangGraph can query the db
 	await workflow.invoke({ runId });
 }
 
-// Only run the initial bootstrap if this file is executed directly from the terminal
 if (process.argv[1].endsWith("index.ts")) {
 	startPipelineRun().catch((error) => {
-		console.error("\n🚨 Monolithic orchestration failure:", error.message);
+		console.error("\nMonolithic orchestration failure:", error.message);
 	});
 }
