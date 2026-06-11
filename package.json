@@ -1,28 +1,29 @@
 {
-  "name": "autonomous-code-refactorer",
-  "version": "1.0.0",
-  "type": "module",
-  "description": "Autonomous multi-agent code modernization engine",
-  "main": "src/index.ts",
-  "scripts": {
-    "dev": "tsx src/index.ts"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "@aws-sdk/client-bedrock-runtime": "^3.1064.0",
-    "@langchain/core": "^1.1.48",
-    "@langchain/langgraph": "^1.3.7",
-    "@prisma/adapter-better-sqlite3": "^7.8.0",
-    "@prisma/client": "^7.8.0",
-    "dotenv": "^17.4.2",
-    "zod": "^4.4.3"
-  },
-  "devDependencies": {
-    "@types/node": "^25.9.2",
-    "prisma": "^6.19.3",
-    "tsx": "^4.22.4",
-    "typescript": "^6.0.3"
-  }
+	"name": "autonomous-code-refactorer",
+	"version": "1.0.0",
+	"type": "module",
+	"description": "Autonomous multi-agent code modernization engine",
+	"main": "src/index.ts",
+	"scripts": {
+		"dev": "tsx src/batch.ts",
+		"print": "tsx src/print-run.ts"
+	},
+	"keywords": [],
+	"author": "",
+	"license": "ISC",
+	"dependencies": {
+		"@aws-sdk/client-bedrock-runtime": "^3.1064.0",
+		"@langchain/core": "^1.1.48",
+		"@langchain/langgraph": "^1.3.7",
+		"@prisma/adapter-better-sqlite3": "^7.8.0",
+		"@prisma/client": "^7.8.0",
+		"dotenv": "^17.4.2",
+		"zod": "^4.4.3"
+	},
+	"devDependencies": {
+		"@types/node": "^25.9.2",
+		"prisma": "^6.19.3",
+		"tsx": "^4.22.4",
+		"typescript": "^6.0.3"
+	}
 }

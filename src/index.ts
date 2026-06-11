@@ -1,7 +1,5 @@
 import "dotenv/config";
-import { randomUUID } from "node:crypto";
 import { StateGraph, Annotation, START, END } from "@langchain/langgraph";
-import { ingestLegacyMesh } from "./utils/reader.js";
 import { parserAgentNode } from "./agents/parser.js";
 import { researcherAgentNode } from "./agents/researcher.js";
 import { migratorAgentNode } from "./agents/migrator.js";
@@ -13,7 +11,7 @@ const GraphState = Annotation.Root({
 	runId: Annotation<string>(),
 });
 
-// 2. Wrap existing agents into LangGraph Nodes
+// 2. Wrap db agents into formal LangGraph Nodes
 async function runParser(state: typeof GraphState.State) {
 	await parserAgentNode(state.runId);
 	return {};
@@ -34,7 +32,7 @@ async function runCritic(state: typeof GraphState.State) {
 	return {};
 }
 
-// 3. NEW: The Intelligent Boot Router (Runs immediately on START)
+// 3. Boot Router
 async function routeFromStart(state: typeof GraphState.State) {
 	const record = await db.pipelineRun.findUnique({
 		where: { id: state.runId },
@@ -46,7 +44,7 @@ async function routeFromStart(state: typeof GraphState.State) {
 		`\n[Graph Boot] Resuming execution from checkpoint: "${record.status}"`,
 	);
 
-	// Jump straight to the correct node based on the physical database state!
+	// Jump to the correct node based on the state in db
 	switch (record.status) {
 		case "PENDING":
 			return "parser";
@@ -61,7 +59,7 @@ async function routeFromStart(state: typeof GraphState.State) {
 	}
 }
 
-// 4. EXISTING: The Standard Edge Router
+// 4. The Standard Edge Router (Evaluates state after every node)
 async function routeNextNode(state: typeof GraphState.State) {
 	const record = await db.pipelineRun.findUnique({
 		where: { id: state.runId },
@@ -76,6 +74,7 @@ async function routeNextNode(state: typeof GraphState.State) {
 		case "RESEARCHING":
 			return "researcher";
 		case "MIGRATING":
+			// HitL Intterupt Gate
 			if (record.humanApproval === "PENDING") {
 				console.log(
 					`[Graph Router] EXECUTION HALTED: Awaiting human review.`,
@@ -105,9 +104,10 @@ const builder = new StateGraph(GraphState)
 	.addNode("migrator", runMigrator)
 	.addNode("critic", runCritic)
 
-	// 👈 THE FIX: We dynamically route from START instead of hardcoding to parser
+	// Conditionally route from START based on the database
 	.addConditionalEdges(START, routeFromStart)
 
+	// Conditionally route after every node finishes
 	.addConditionalEdges("parser", routeNextNode)
 	.addConditionalEdges("researcher", routeNextNode)
 	.addConditionalEdges("migrator", routeNextNode)
@@ -115,44 +115,10 @@ const builder = new StateGraph(GraphState)
 
 export const workflow = builder.compile();
 
-// 6. Initial Pipeline Entry Point
-async function startPipelineRun() {
-	console.log("Bootstrapping LangGraph state-machine architecture...\n");
-	const targetPath = "fixtures/infrastructure-status.cfm";
-
-	const fileMesh = await ingestLegacyMesh(targetPath);
-	const nextRunId = randomUUID();
-
-	await db.pipelineRun.create({
-		data: {
-			id: nextRunId,
-			sourcePath: fileMesh.targetPath,
-			fileType: "CFM_MAIN",
-			rawSourceCode: fileMesh.sanitizedContent,
-			status: "PENDING",
-			humanApproval: "PENDING",
-			iterationCount: 1,
-			isSyntaxValidated: false,
-		},
-	});
-
-	console.log(`Beginning LangGraph Execution for Run ID: ${nextRunId}`);
-	await workflow.invoke({ runId: nextRunId });
-	console.log(
-		"\nLangGraph execution hit native breakpoint. Awaiting human approval.",
-	);
-}
-
-// 7. External Re-Awakening Gateway
+// 6. External Re-Awakening Gateway (Currently called by approve-run.ts)
 export async function resumePipelineRun(runId: string) {
 	console.log(`\nRe-awakening LangGraph State Machine for Run ID: ${runId}`);
 
-	// Pass the state payload again so LangGraph can query the db
+	// Re-inject the runId so LangGraph hits START -> routeFromStart -> Migrator
 	await workflow.invoke({ runId });
-}
-
-if (process.argv[1].endsWith("index.ts")) {
-	startPipelineRun().catch((error) => {
-		console.error("\nMonolithic orchestration failure:", error.message);
-	});
 }
